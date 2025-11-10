@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <title>Sorteio & Balanceamento de Times (ELO)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f172a;--panel:#111827;--muted:#1f2937;--text:#e5e7eb;--sub:#9ca3af;
+      --accent:#22c55e;--accent-2:#3b82f6;--danger:#ef4444;--warn:#f59e0b;--ok:#10b981;
+      --chip:#0b1220;--border:#374151;--radius:14px;--shadow:0 10px 30px rgba(0,0,0,.35)
+    }
+    *{box-sizing:border-box}
+    body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;margin:0;background:radial-gradient(1200px 600px at 80% -10%,#1f2937 0%,#0f172a 60%);color:var(--text)}
+    header{position:sticky;top:0;z-index:10;backdrop-filter:blur(10px);background:linear-gradient(180deg,rgba(15,23,42,.9) 0%,rgba(15,23,42,.6) 100%);border-bottom:1px solid var(--border)}
+    .nav{max-width:1200px;margin:0 auto;padding:14px 18px;display:flex;gap:16px;align-items:center;justify-content:space-between}
+    .brand{font-weight:800;letter-spacing:.3px}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap}
+    .tab{padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:#0b1220;cursor:pointer;color:var(--sub)}
+    .tab.active{background:var(--muted);color:var(--text);border-color:#465167}
+    main{max-width:1200px;margin:28px auto;padding:0 18px 60px;display:grid;gap:20px}
+    section.panel{background:linear-gradient(180deg,rgba(17,24,39,.8),rgba(17,24,39,.6));border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+    h2{margin:0 0 12px 0;font-size:18px}
+    .grid{display:grid;gap:14px}
+    .grid.cols-2{grid-template-columns:1fr 1fr}
+    .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    input,select{background:#0b1220;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px 12px;outline:none;width:100%}
+    input[type="number"]{width:140px}
+    input[type="datetime-local"]{width:240px}
+    button{background:var(--accent-2);color:white;border:none;cursor:pointer;padding:10px 14px;border-radius:10px;font-weight:600}
+    button.secondary{background:var(--muted)}
+    button.warn{background:var(--warn);color:#111}
+    button.danger{background:var(--danger)}
+    button.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+    .pill{padding:4px 8px;border-radius:999px;background:var(--chip);border:1px solid var(--border);color:var(--sub);font-size:12px}
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{border-bottom:1px solid var(--border);padding:10px;text-align:left}
+    .table th{color:var(--sub);font-weight:600}
+    .team{border:1px dashed var(--border);border-radius:12px;padding:10px;display:grid;gap:8px;background:#0b1220}
+    .team h3{margin:0;font-size:16px}
+    .player-chip{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#10182a;border:1px solid #1f2a44;white-space:nowrap}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+    .hint{color:var(--sub);font-size:12px}
+    .right{text-align:right}
+    .success{color:var(--ok)}
+    .muted{color:var(--sub)}
+    .card{border:1px solid var(--border);background:#0b1220;padding:12px;border-radius:12px}
+    .space{height:8px}
+    @media (max-width:900px){.grid.cols-3{grid-template-columns:1fr}.grid.cols-2{grid-template-columns:1fr}header .nav{flex-direction:column;align-items:flex-start}input[type="number"]{width:100%}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="nav">
+    <div class="brand">🏐 Balanceador de Times (ELO)</div>
+    <div class="tabs">
+      <button class="tab active" data-tab="jogadores">Jogadores</button>
+      <button class="tab" data-tab="sorteio">Sorteio & Times</button>
+      <button class="tab" data-tab="placar">Placar & Resultado</button>
+      <button class="tab" data-tab="historico">Histórico</button>
+      <button class="tab" data-tab="backup">Backup</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="panel" data-panel="jogadores">
+    <h2>Jogadores</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="row">
+          <input id="nome" placeholder="Nome do jogador" />
+          <input id="elo" type="number" placeholder="ELO (ex: 1000)" />
+          <button id="addJogador">Adicionar</button>
+        </div>
+        <div class="space"></div>
+        <div class="hint">Você pode editar ELO e estatísticas depois.</div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <button class="ghost" id="resetStats">Zerar estatísticas</button>
+          <button class="danger" id="wipeAll">Apagar tudo</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="space"></div>
+
+    <table class="table" id="tabelaJogadores">
+      <thead>
+        <tr>
+          <th>Nome</th><th>ELO</th><th>J</th><th>V</th><th>D</th><th>Última</th><th class="right">Ações</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="hint">J = partidas jogadas, V = vitórias, D = derrotas</div>
+  </section>
+
+  <section class="panel" data-panel="sorteio" hidden>
+    <h2>Sorteio com Balanceamento</h2>
+    <div class="grid cols-3">
+      <div class="card">
+        <div class="row"><span class="pill">Configurações</span></div>
+        <div class="space"></div>
+        <div class="grid">
+          <label>Mín. jogadores por time
+            <input type="number" id="minJogadores" value="4" min="1" />
+          </label>
+          <label>Máx. jogadores por time
+            <input type="number" id="maxJogadores" value="6" min="1" />
+          </label>
+          <label>Jogadores por time (aplicado)
+            <input type="number" id="jogadoresPorTime" value="6" min="1" />
+          </label>
+          <label>Quantidade de times
+            <input type="number" id="qtdTimes" value="2" min="2" />
+          </label>
+          <label>Modo de seleção
+            <select id="modoSelecao">
+              <option value="prioridade">Priorizar quem jogou menos</option>
+              <option value="todos">Usar todos os jogadores</option>
+              <option value="selecionados">Usar somente selecionados</option>
+            </select>
+          </label>
+        </div>
+        <div class="space"></div>
+        <div id="seletorJogadores" class="row"></div>
+        <div class="space"></div>
+        <div class="row">
+          <button id="gerarTimes">Gerar times balanceados</button>
+          <button class="secondary" id="embaralhar">Embaralhar novamente</button>
+          <button class="ghost" id="limparTimes">Limpar</button>
+        </div>
+        <div class="space"></div>
+        <div class="hint">O valor de “Jogadores por time” será mantido entre o mínimo e o máximo definidos.</div>
+      </div>
+
+      <div class="card">
+        <div class="row"><label class="pill">Time A</label><span id="eloA" class="pill mono">ELO: 0</span></div>
+        <div class="space"></div>
+        <div id="timeA" class="team"></div>
+      </div>
+
+      <div class="card">
+        <div class="row"><label class="pill">Time B</label><span id="eloB" class="pill mono">ELO: 0</span></div>
+        <div class="space"></div>
+        <div id="timeB" class="team"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" data-panel="placar" hidden>
+    <h2>Placar & Resultado</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="row"><span class="pill">Parâmetros de Placar</span></div>
+        <div class="space"></div>
+        <div class="row">
+          <label>Placar mínimo
+            <input id="placarMin" type="number" value="0" />
+          </label>
+          <label>Placar máximo
+            <input id="placarMax" type="number" value="25" />
+          </label>
+        </div>
+        <div class="space"></div>
+        <div class="row"><span class="pill">Placar final</span></div>
+        <div class="space"></div>
+        <div class="row">
+          <input id="placarA" type="number" placeholder="Time A" />
+          <span class="pill">x</span>
+          <input id="placarB" type="number" placeholder="Time B" />
+        </div>
+        <div class="space"></div>
+        <div class="row">
+          <label>Data e hora da pelada
+            <input id="peladaAt" type="datetime-local" />
+          </label>
+        </div>
+        <div class="space"></div>
+        <div class="row">
+          <button id="salvarResultado">Salvar resultado</button>
+          <button class="secondary" id="reverterUltimo">Desfazer último</button>
+        </div>
+        <div class="space"></div>
+        <div id="resultadoMsg" class="hint"></div>
+        <div class="space"></div>
+        <div class="hint">Validação: scores devem estar entre mínimo e máximo. Ao salvar: atualiza J/V/D, última partida e ELO (K=20).</div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="pill">Resumo da partida</span></div>
+        <div class="space"></div>
+        <div id="resumoPartida" class="grid"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" data-panel="historico" hidden>
+    <h2>Histórico de Peladas</h2>
+    <div id="listaHistorico" class="grid"></div>
+  </section>
+
+  <section class="panel" data-panel="backup" hidden>
+    <h2>Backup & Restauração</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="row">
+          <button id="exportar">Exportar JSON</button>
+          <a id="downloadLink" class="tab" style="text-decoration:none;" hidden>Baixar</a>
+        </div>
+        <div class="space"></div>
+        <div class="hint">Baixe jogadores, partidas e times atuais.</div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <input type="file" id="importarArquivo" accept=".json,application/json" />
+          <button class="warn" id="importar">Importar</button>
+        </div>
+        <div class="space"></div>
+        <div class="hint">Substitui seus dados atuais.</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const STORAGE_KEYS = {
+    PLAYERS: 'elo_players_v2',
+    MATCHES: 'elo_matches_v2',
+    CURRENT: 'elo_current_v2',
+    SETTINGS: 'elo_settings_v2'
+  };
+
+  const nowISO = () => new Date().toISOString();
+  const fmtDate = (iso) => iso ? new Date(iso).toLocaleString() : '—';
+  const uid = () => Math.random().toString(36).slice(2, 10);
+
+  let players = load(STORAGE_KEYS.PLAYERS) || [];
+  let matches = load(STORAGE_KEYS.MATCHES) || [];
+  let current = load(STORAGE_KEYS.CURRENT) || { teamA: [], teamB: [] };
+  let settings = load(STORAGE_KEYS.SETTINGS) || {
+    minJogadores: 4,
+    maxJogadores: 6,
+    jogadoresPorTime: 6,
+    qtdTimes: 2,
+    placarMin: 0,
+    placarMax: 25
+  };
+
+  function save(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+  function load(key){ try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
+
+  document.querySelectorAll('.tab').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('section.panel').forEach(sec=>sec.hidden = sec.dataset.panel !== tab);
+      renderAll();
+    });
+  });
+
+  const elNome = document.getElementById('nome');
+  const elElo = document.getElementById('elo');
+  const tabelaJogadores = document.querySelector('#tabelaJogadores tbody');
+
+  document.getElementById('addJogador').addEventListener('click', ()=>{
+    const nome = elNome.value.trim();
+    const elo = Number(elElo.value || 1000);
+    if(!nome) return alert('Informe o nome.');
+    players.push({ id: uid(), nome, elo, jogos: 0, vitorias: 0, derrotas: 0, ultima: null, sel: false });
+    save(STORAGE_KEYS.PLAYERS, players);
+    elNome.value=''; elElo.value='';
+    renderPlayers(); renderSeletor();
+  });
+
+  document.getElementById('resetStats').addEventListener('click', ()=>{
+    if(!confirm('Zerar estatísticas de todos os jogadores?')) return;
+    players = players.map(p=>({ ...p, jogos:0, vitorias:0, derrotas:0, ultima:null }));
+    save(STORAGE_KEYS.PLAYERS, players); renderPlayers();
+  });
+
+  document.getElementById('wipeAll').addEventListener('click', ()=>{
+    if(!confirm('Apagar jogadores, partidas e times atuais?')) return;
+    players=[]; matches=[]; current={ teamA:[], teamB:[] };
+    save(STORAGE_KEYS.PLAYERS, players);
+    save(STORAGE_KEYS.MATCHES, matches);
+    save(STORAGE_KEYS.CURRENT, current);
+    renderAll();
+  });
+
+  function renderPlayers(){
+    tabelaJogadores.innerHTML='';
+    const byName=[...players].sort((a,b)=>a.nome.localeCompare(b.nome,'pt'));
+    for(const p of byName){
+      const tr=document.createElement('tr');
+      tr.innerHTML=`
+        <td>${p.nome}</td>
+        <td><input type="number" class="edit-elo" data-id="${p.id}" value="${p.elo}" /></td>
+        <td><input type="number" class="edit-j" data-id="${p.id}" value="${p.jogos}" /></td>
+        <td><input type="number" class="edit-v" data-id="${p.id}" value="${p.vitorias}" /></td>
+        <td><input type="number" class="edit-d" data-id="${p.id}" value="${p.derrotas}" /></td>
+        <td class="muted">${fmtDate(p.ultima)}</td>
+        <td class="right">
+          <button class="ghost sel" data-id="${p.id}">${p.sel ? 'Selecionado' : 'Selecionar'}</button>
+          <button class="danger del" data-id="${p.id}">Remover</button>
+        </td>`;
+      tabelaJogadores.appendChild(tr);
+    }
+    tabelaJogadores.querySelectorAll('.edit-elo').forEach(inp=>{
+      inp.addEventListener('change', ()=>{
+        const p=players.find(x=>x.id===inp.dataset.id);
+        p.elo=Number(inp.value || p.elo);
+        save(STORAGE_KEYS.PLAYERS, players); renderSeletor();
+      });
+    });
+    tabelaJogadores.querySelectorAll('.edit-j').forEach(inp=>{
+      inp.addEventListener('change', ()=>{
+        const p=players.find(x=>x.id===inp.dataset.id);
+        p.jogos=Math.max(0, Number(inp.value || 0));
+        save(STORAGE_KEYS.PLAYERS, players);
+      });
+    });
+    tabelaJogadores.querySelectorAll('.edit-v').forEach(inp=>{
+      inp.addEventListener('change', ()=>{
+        const p=players.find(x=>x.id===inp.dataset.id);
+        p.vitorias=Math.max(0, Number(inp.value || 0));
+        save(STORAGE_KEYS.PLAYERS, players);
+      });
+    });
+    tabelaJogadores.querySelectorAll('.edit-d').forEach(inp=>{
+      inp.addEventListener('change', ()=>{
+        const p=players.find(x=>x.id===inp.dataset.id);
+        p.derrotas=Math.max(0, Number(inp.value || 0));
+        save(STORAGE_KEYS.PLAYERS, players);
+      });
+    });
+    tabelaJogadores.querySelectorAll('.del').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id=btn.dataset.id;
+        const pj=players.find(p=>p.id===id);
+        if(!confirm(`Remover ${pj.nome}?`)) return;
+        players=players.filter(p=>p.id!==id);
+        save(STORAGE_KEYS.PLAYERS, players); renderAll();
+      });
+    });
+    tabelaJogadores.querySelectorAll('.sel').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const p=players.find(x=>x.id===btn.dataset.id);
+        p.sel=!p.sel; save(STORAGE_KEYS.PLAYERS, players);
+        renderPlayers(); renderSeletor();
+      });
+    });
+  }
+
+  const elSeletor=document.getElementById('seletorJogadores');
+  const modoSelecao=document.getElementById('modoSelecao');
+
+  function renderSeletor(){
+    elSeletor.innerHTML='';
+    const list=[...players].sort((a,b)=>a.jogos-b.jogos || a.nome.localeCompare(b.nome,'pt'));
+    for(const p of list){
+      const chip=document.createElement('button');
+      chip.className='player-chip'; chip.dataset.id=p.id;
+      chip.title=`Jogos: ${p.jogos} | ELO: ${p.elo}`;
+      chip.innerHTML=`
+        <span>${p.nome}</span>
+        <span class="pill mono">${p.elo}</span>
+        <span class="pill mono">J:${p.jogos}</span>
+        <span class="pill ${p.sel ? 'success':''}">${p.sel ? '✓':'+'}</span>`;
+      chip.addEventListener('click', ()=>{
+        p.sel=!p.sel; save(STORAGE_KEYS.PLAYERS, players);
+        renderSeletor(); renderPlayers();
+      });
+      elSeletor.appendChild(chip);
+    }
+  }
+
+  const minJogadores = document.getElementById('minJogadores');
+  const maxJogadores = document.getElementById('maxJogadores');
+  const jogadoresPorTime = document.getElementById('jogadoresPorTime');
+  const qtdTimes = document.getElementById('qtdTimes');
+  const timeA=document.getElementById('timeA');
+  const timeB=document.getElementById('timeB');
+  const eloA=document.getElementById('eloA');
+  const eloB=document.getElementById('eloB');
+
+  function syncSettingsToInputs(){
+    minJogadores.value = settings.minJogadores;
+    maxJogadores.value = settings.maxJogadores;
+    jogadoresPorTime.value = settings.jogadoresPorTime;
+    qtdTimes.value = settings.qtdTimes;
+    document.getElementById('placarMin').value = settings.placarMin;
+    document.getElementById('placarMax').value = settings.placarMax;
+    const peladaInput = document.getElementById('peladaAt');
+    if(!peladaInput.value){
+      const d = new Date();
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      peladaInput.value = d.toISOString().slice(0,16);
+    }
+  }
+
+  function clampPlayersPerTeam(){
+    const min = Math.max(1, Number(minJogadores.value||1));
+    const max = Math.max(min, Number(maxJogadores.value||min));
+    let per = Number(jogadoresPorTime.value||min);
+    if(per < min) per = min;
+    if(per > max) per = max;
+    settings.minJogadores = min;
+    settings.maxJogadores = max;
+    settings.jogadoresPorTime = per;
+    settings.qtdTimes = Math.max(2, Number(qtdTimes.value||2));
+    save(STORAGE_KEYS.SETTINGS, settings);
+    minJogadores.value=min; maxJogadores.value=max; jogadoresPorTime.value=per; qtdTimes.value=settings.qtdTimes;
+  }
+
+  [minJogadores,maxJogadores,jogadoresPorTime,qtdTimes].forEach(el=>{
+    el.addEventListener('change', ()=>{ clampPlayersPerTeam(); });
+  });
+
+  function pickPool(){
+    let pool=[...players];
+    if(modoSelecao.value==='selecionados'){ pool = pool.filter(p=>p.sel); }
+    if(modoSelecao.value==='prioridade'){ pool.sort((a,b)=> (a.jogos-b.jogos) || (Math.random()-0.5)); }
+    else { pool.sort((a,b)=>a.nome.localeCompare(b.nome,'pt')); }
+    return pool;
+  }
+
+  function balanceTeams(){
+    clampPlayersPerTeam();
+    const nTeams = settings.qtdTimes;
+    const perTeam = settings.jogadoresPorTime;
+    const pool = pickPool();
+    const totalNeeded = nTeams * perTeam;
+    const chosen = pool.slice(0, Math.min(totalNeeded, pool.length));
+    const sorted = [...chosen].sort((a,b)=> b.elo - a.elo);
+    const teams = Array.from({length:nTeams}, ()=>({ players:[], sum:0 }));
+
+    for(const p of sorted){
+      let idx=0, best=Infinity;
+      for(let i=0;i<nTeams;i++){
+        if(teams[i].players.length>=perTeam) continue;
+        if(teams[i].sum<best){ best=teams[i].sum; idx=i; }
+      }
+      teams[idx].players.push(p);
+      teams[idx].sum += p.elo;
+    }
+
+    current.teamA = teams[0]?.players.map(p=>p.id) || [];
+    current.teamB = teams[1]?.players.map(p=>p.id) || [];
+    save(STORAGE_KEYS.CURRENT, current);
+    renderTeams();
+  }
+
+  function renderTeam(container, ids){
+    container.innerHTML='';
+    const ps=ids.map(id=>players.find(p=>p.id===id)).filter(Boolean);
+    for(const p of ps){
+      const div=document.createElement('div');
+      div.className='row';
+      div.innerHTML=`
+        <span class="player-chip"><strong>${p.nome}</strong>
+          <span class="pill mono">${p.elo}</span>
+          <span class="pill mono">J:${p.jogos}</span>
+        </span>
+        <button class="ghost rm" data-id="${p.id}">remover</button>`;
+      container.appendChild(div);
+    }
+    container.querySelectorAll('.rm').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id=btn.dataset.id;
+        current.teamA=current.teamA.filter(x=>x!==id);
+        current.teamB=current.teamB.filter(x=>x!==id);
+        save(STORAGE_KEYS.CURRENT, current); renderTeams();
+      });
+    });
+  }
+
+  function teamSum(ids){
+    return ids.reduce((acc,id)=>{
+      const p=players.find(x=>x.id===id);
+      return acc + (p? p.elo : 0);
+    },0);
+  }
+
+  function renderTeams(){
+    renderTeam(timeA, current.teamA);
+    renderTeam(timeB, current.teamB);
+    eloA.textContent='ELO: '+teamSum(current.teamA);
+    eloB.textContent='ELO: '+teamSum(current.teamB);
+    renderResumoPartida();
+  }
+
+  document.getElementById('gerarTimes').addEventListener('click', balanceTeams);
+  document.getElementById('embaralhar').addEventListener('click', balanceTeams);
+  document.getElementById('limparTimes').addEventListener('click', ()=>{
+    current.teamA=[]; current.teamB=[]; save(STORAGE_KEYS.CURRENT, current); renderTeams();
+  });
+
+  const placarA=document.getElementById('placarA');
+  const placarB=document.getElementById('placarB');
+  const salvarResultado=document.getElementById('salvarResultado');
+  const reverterUltimo=document.getElementById('reverterUltimo');
+  const resultadoMsg=document.getElementById('resultadoMsg');
+  const resumoPartida=document.getElementById('resumoPartida');
+  const placarMin=document.getElementById('placarMin');
+  const placarMax=document.getElementById('placarMax');
+  const peladaAt=document.getElementById('peladaAt');
+
+  [placarMin,placarMax].forEach(el=>{
+    el.addEventListener('change', ()=>{
+      const min = Number(placarMin.value||0);
+      const max = Number(placarMax.value||min);
+      settings.placarMin = Math.min(min, max);
+      settings.placarMax = Math.max(min, max);
+      placarMin.value = settings.placarMin;
+      placarMax.value = settings.placarMax;
+      save(STORAGE_KEYS.SETTINGS, settings);
+    });
+  });
+
+  function renderResumoPartida(){
+    const psA=current.teamA.map(id=>players.find(p=>p.id===id)).filter(Boolean);
+    const psB=current.teamB.map(id=>players.find(p=>p.id===id)).filter(Boolean);
+    const sumA=psA.reduce((s,p)=>s+p.elo,0);
+    const sumB=psB.reduce((s,p)=>s+p.elo,0);
+    const avgA=psA.length?Math.round(sumA/psA.length):0;
+    const avgB=psB.length?Math.round(sumB/psB.length):0;
+
+    resumoPartida.innerHTML=`
+      <div class="row"><div class="pill">Time A</div>
+        <div class="pill mono">Jogadores: ${psA.length}</div>
+        <div class="pill mono">Soma ELO: ${sumA}</div>
+        <div class="pill mono">Média ELO: ${avgA}</div></div>
+      <div class="row"><div class="pill">Time B</div>
+        <div class="pill mono">Jogadores: ${psB.length}</div>
+        <div class="pill mono">Soma ELO: ${sumB}</div>
+        <div class="pill mono">Média ELO: ${avgB}</div></div>`;
+  }
+
+  function updateEloTeams(scoreA, scoreB){
+    const teamA=current.teamA.map(id=>players.find(p=>p.id===id)).filter(Boolean);
+    const teamB=current.teamB.map(id=>players.find(p=>p.id===id)).filter(Boolean);
+    const RA=teamA.reduce((s,p)=>s+p.elo,0);
+    const RB=teamB.reduce((s,p)=>s+p.elo,0);
+    if(!teamA.length || !teamB.length) return;
+    const EA=1/(1+Math.pow(10,(RB-RA)/400));
+    const EB=1-EA;
+    const SA=scoreA>scoreB?1:(scoreA===scoreB?0.5:0);
+    const SB=1-SA;
+    const K=20;
+    const deltaA=Math.round(K*(SA-EA));
+    const deltaB=Math.round(K*(SB-EB));
+    for(const p of teamA) p.elo=Math.max(0,p.elo+deltaA);
+    for(const p of teamB) p.elo=Math.max(0,p.elo+deltaB);
+  }
+
+  function aplicarResultado(scoreA, scoreB, peladaDateISO){
+    const idsA=[...current.teamA];
+    const idsB=[...current.teamB];
+    if(!idsA.length || !idsB.length) throw new Error('Defina os times antes de salvar o resultado.');
+
+    const venceuA=scoreA>scoreB;
+    const venceuB=scoreB>scoreA;
+    const stamp = nowISO();
+
+    for(const id of idsA){
+      const p=players.find(x=>x.id===id); if(!p) continue;
+      p.jogos+=1; p.ultima=stamp;
+      if(venceuA) p.vitorias+=1; else if(venceuB) p.derrotas+=1;
+    }
+    for(const id of idsB){
+      const p=players.find(x=>x.id===id); if(!p) continue;
+      p.jogos+=1; p.ultima=stamp;
+      if(venceuB) p.vitorias+=1; else if(venceuA) p.derrotas+=1;
+    }
+
+    updateEloTeams(scoreA, scoreB);
+
+    matches.unshift({
+      id: uid(),
+      data: stamp,
+      peladaAt: peladaDateISO || stamp,
+      scoreA, scoreB,
+      teamA: idsA,
+      teamB: idsB
+    });
+
+    save(STORAGE_KEYS.MATCHES, matches);
+    save(STORAGE_KEYS.PLAYERS, players);
+  }
+
+  document.getElementById('salvarResultado').addEventListener('click', ()=>{
+    const sA=Number(placarA.value);
+    const sB=Number(placarB.value);
+    const min=Number(placarMin.value);
+    const max=Number(placarMax.value);
+    if(Number.isNaN(sA)||Number.isNaN(sB)) return alert('Informe o placar de ambos os times.');
+    if(sA<min||sA>max||sB<min||sB>max) return alert(`Placar fora do intervalo [${min}..${max}].`);
+    try{
+      let peladaISO = null;
+      if(peladaAt.value){
+        const d = new Date(peladaAt.value);
+        peladaISO = new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString();
+      }
+      aplicarResultado(sA, sB, peladaISO);
+      resultadoMsg.textContent=`Resultado salvo — ${sA} x ${sB}`;
+      renderAll();
+    }catch(e){ alert(e.message); }
+  });
+
+  document.getElementById('reverterUltimo').addEventListener('click', ()=>{
+    const last=matches[0];
+    if(!last) return alert('Não há partidas para reverter.');
+    if(!confirm('Desfazer a última partida? (reversão aproximada de ELO)')) return;
+
+    for(const id of last.teamA){
+      const p=players.find(x=>x.id===id); if(!p) continue;
+      p.jogos=Math.max(0,p.jogos-1);
+      if(last.scoreA>last.scoreB) p.vitorias=Math.max(0,p.vitorias-1);
+      else if(last.scoreB>last.scoreA) p.derrotas=Math.max(0,p.derrotas-1);
+      if(p.ultima===last.data){
+        p.ultima=null;
+        for(const m of matches.slice(1)){
+          if(m.teamA.includes(p.id)||m.teamB.includes(p.id)){ p.ultima=m.data; break; }
+        }
+      }
+    }
+    for(const id of last.teamB){
+      const p=players.find(x=>x.id===id); if(!p) continue;
+      p.jogos=Math.max(0,p.jogos-1);
+      if(last.scoreB>last.scoreA) p.vitorias=Math.max(0,p.vitorias-1);
+      else if(last.scoreA>last.scoreB) p.derrotas=Math.max(0,p.derrotas-1);
+      if(p.ultima===last.data){
+        p.ultima=null;
+        for(const m of matches.slice(1)){
+          if(m.teamA.includes(p.id)||m.teamB.includes(p.id)){ p.ultima=m.data; break; }
+        }
+      }
+    }
+
+    current.teamA=[...last.teamA];
+    current.teamB=[...last.teamB];
+    updateEloTeams(last.scoreB, last.scoreA);
+
+    matches.shift();
+    save(STORAGE_KEYS.MATCHES, matches);
+    save(STORAGE_KEYS.PLAYERS, players);
+    save(STORAGE_KEYS.CURRENT, current);
+    resultadoMsg.textContent='Última partida revertida.';
+    renderAll();
+  });
+
+  const listaHistorico=document.getElementById('listaHistorico');
+
+  function renderHistorico(){
+    listaHistorico.innerHTML='';
+    if(!matches.length){
+      listaHistorico.innerHTML='<div class="hint">Sem peladas registradas ainda.</div>';
+      return;
+    }
+    for(const m of matches){
+      const namesA = m.teamA.map(id=>players.find(p=>p.id===id)?.nome || '—').join(', ');
+      const namesB = m.teamB.map(id=>players.find(p=>p.id===id)?.nome || '—').join(', ');
+      const card=document.createElement('div'); card.className='card';
+      card.innerHTML=`
+        <div class="row">
+          <strong>Pelada: ${fmtDate(m.peladaAt || m.data)}</strong>
+          <span class="pill mono">${m.scoreA} x ${m.scoreB}</span>
+        </div>
+        <div class="space"></div>
+        <div class="grid">
+          <div><span class="pill">Time A</span> ${namesA}</div>
+          <div><span class="pill">Time B</span> ${namesB}</div>
+        </div>
+        <div class="space"></div>
+        <div class="hint">Registro: ${fmtDate(m.data)}</div>`;
+      listaHistorico.appendChild(card);
+    }
+  }
+
+  const exportar=document.getElementById('exportar');
+  const importar=document.getElementById('importar');
+  const importarArquivo=document.getElementById('importarArquivo');
+  const downloadLink=document.getElementById('downloadLink');
+
+  exportar.addEventListener('click', ()=>{
+    const blob=new Blob([JSON.stringify({ players, matches, current, settings }, null, 2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    downloadLink.href=url;
+    downloadLink.download=`backup-elo-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+    downloadLink.hidden=false; downloadLink.textContent='Baixar backup';
+  });
+
+  importar.addEventListener('click', ()=>{
+    const file=importarArquivo.files?.[0];
+    if(!file) return alert('Selecione um arquivo JSON.');
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const data=JSON.parse(reader.result);
+        if(!confirm('Importar e substituir seus dados atuais?')) return;
+        players=Array.isArray(data.players)?data.players:[];
+        matches=Array.isArray(data.matches)?data.matches:[];
+        current=data.current || { teamA:[], teamB:[] };
+        settings = data.settings || settings;
+        save(STORAGE_KEYS.PLAYERS, players);
+        save(STORAGE_KEYS.MATCHES, matches);
+        save(STORAGE_KEYS.CURRENT, current);
+        save(STORAGE_KEYS.SETTINGS, settings);
+        renderAll(); alert('Importação concluída.');
+      }catch(e){ alert('Arquivo inválido.'); }
+    };
+    reader.readAsText(file);
+  });
+
+  function renderAll(){
+    syncSettingsToInputs();
+    renderPlayers();
+    renderSeletor();
+    renderTeams();
+    renderHistorico();
+  }
+  renderAll();
+</script>
+</body>
+</html>
